@@ -1,3 +1,14 @@
+# Changelog configuration for git-cliff.
+#
+# IMPORTANT: The canonical repository is https://github.com/solutions-plug/predictIQ
+# The `remote` below MUST point at the `solutions-plug` org. If the repo is ever
+# transferred again, update this value (and regenerate CHANGELOG.md) so that
+# compare/commit/issue links do not silently drift to a defunct org.
+
+[remote.github]
+owner = "solutions-plug"
+repo = "predictIQ"
+
 [changelog]
 header = """
 # Changelog
