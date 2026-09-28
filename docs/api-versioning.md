@@ -94,3 +94,7 @@ Unsupported versions are ignored and the server falls back to the default versio
 
 - `services/api/src/versioning.rs` — sunset header injection middleware
 - `API_SPEC.md` — full endpoint reference
+
+---
+
+> **Single source of truth:** This document is the canonical reference for API versioning, sunset dates, and the v2 roadmap. `API_SPEC.md` links here rather than restating version status or sunset dates, so update versioning details only in this file.

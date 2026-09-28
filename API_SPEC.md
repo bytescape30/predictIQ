@@ -23,6 +23,9 @@ Clients should monitor these headers and migrate before the sunset date.
 Deprecated versions are supported for a minimum of **12 months** after the deprecation
 announcement before being removed.
 
+For the authoritative versioning and deprecation policy — including current sunset
+dates and the version roadmap — see [`docs/api-versioning.md`](docs/api-versioning.md).
+
 ## Table of Contents
 
 - [Overview](#overview)
@@ -39,25 +42,6 @@ announcement before being removed.
 ```
 http://0.0.0.0:8080
 ```
-
-### API Versioning
-
-The API uses URL path versioning (`/api/v1/`). The current stable version is **v1**.
-
-Clients may also send an `API-Version` header (e.g. `API-Version: v1`) to explicitly
-declare the version they target. If omitted, the server defaults to the current version.
-
-### Deprecation Policy
-
-When a version is deprecated:
-- Responses will include a `Deprecation` header set to `true`.
-- A `Sunset` header will indicate the date after which the version will be removed.
-- A `Link` header will point to migration documentation.
-
-Clients should monitor these headers and migrate before the sunset date.
-
-Deprecated versions are supported for a minimum of **12 months** after the deprecation
-announcement before being removed.
 
 ## Authentication
 
