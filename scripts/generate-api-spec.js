@@ -79,10 +79,97 @@ function extractEndpoints(doc) {
 }
 
 /**
+ * Resolve a `$ref` pointer (e.g. `#/components/parameters/Limit`) against the
+ * parsed OpenAPI document. Returns the referenced object, or null when the
+ * pointer cannot be resolved.
+ */
+function resolveRef(doc, ref) {
+  if (typeof ref !== 'string' || !ref.startsWith('#/')) return null;
+  const segments = ref.slice(2).split('/').map(s => s.replace(/~1/g, '/').replace(/~0/g, '~'));
+  let node = doc;
+  for (const segment of segments) {
+    if (!node || typeof node !== 'object') return null;
+    node = node[segment];
+  }
+  return node && typeof node === 'object' ? node : null;
+}
+
+/**
+ * Collect pagination parameters declared in the OpenAPI spec.
+ *
+ * Parameters are gathered from `components.parameters` (the canonical place
+ * for reusable pagination params) and from any operation-level `parameters`
+ * entries whose name is one of the pagination fields. `$ref` entries are
+ * resolved so the documented defaults/maximums stay in sync with the spec.
+ */
+function extractPaginationParams(doc) {
+  const PAGINATION_NAMES = ['limit', 'offset', 'cursor'];
+  const seen = new Map();
+
+  const addParam = (param) => {
+    if (!param || typeof param !== 'object') return;
+    const name = param.name;
+    if (!PAGINATION_NAMES.includes(name)) return;
+    if (!seen.has(name)) seen.set(name, param);
+  };
+
+  const components = (doc && doc.components) || {};
+  const componentParams = components.parameters || {};
+  for (const param of Object.values(componentParams)) {
+    addParam(param);
+  }
+
+  const paths = (doc && doc.paths) || {};
+  for (const pathItem of Object.values(paths)) {
+    if (!pathItem || typeof pathItem !== 'object') continue;
+    for (const method of HTTP_METHODS) {
+      const op = pathItem[method];
+      if (!op || !Array.isArray(op.parameters)) continue;
+      for (const raw of op.parameters) {
+        const param = raw && raw.$ref ? resolveRef(doc, raw.$ref) : raw;
+        addParam(param);
+      }
+    }
+  }
+
+  // Preserve a stable, documented ordering.
+  return PAGINATION_NAMES.map(name => seen.get(name)).filter(Boolean);
+}
+
+/**
+ * Render the Pagination section from the parameters declared in the spec.
+ * Returns an empty string when the spec declares no pagination parameters so
+ * the generated docs never claim pagination support that does not exist.
+ */
+function renderPaginationSection(doc) {
+  const params = extractPaginationParams(doc);
+  if (params.length === 0) return '';
+
+  let md = `## Pagination\n\nList endpoints support pagination via the following query parameters:\n\n`;
+  md += `| Parameter | Type | Default | Maximum | Description |\n`;
+  md += `|-----------|------|---------|---------|-------------|\n`;
+
+  params.forEach(param => {
+    const schema = param.schema || {};
+    const type = schema.type || 'string';
+    const def = schema.default !== undefined ? String(schema.default) : '—';
+    const max = schema.maximum !== undefined ? String(schema.maximum) : '—';
+    const description = (param.description || '').replace(/\s+/g, ' ').trim() || '—';
+    md += `| \`${param.name}\` | ${type} | ${def} | ${max} | ${description} |\n`;
+  });
+
+  md += `\nResponses that return collections include pagination metadata so clients can\n`;
+  md += `page through results without guessing at the total size.\n\n`;
+
+  return md;
+}
+
+/**
  * Generate markdown from OpenAPI spec
  */
 function generateMarkdown(spec) {
   const endpoints = extractEndpoints(spec.doc);
+  const paginationSection = renderPaginationSection(spec.doc);
   
   let md = `# ${spec.title} - API Specification
 
@@ -97,7 +184,7 @@ ${spec.description}
 - [Endpoints](#endpoints)
 - [Error Handling](#error-handling)
 - [Rate Limiting](#rate-limiting)
-
+${paginationSection ? '- [Pagination](#pagination)\n' : ''}
 ## Overview
 
 ### Base URL
@@ -193,7 +280,13 @@ The API implements rate limiting to ensure fair usage:
 When rate limited (HTTP 429), the response includes a \`Retry-After\` header indicating
 how many seconds to wait before retrying.
 
----
+`;
+
+  // Pagination is rendered from the OpenAPI spec so it survives regeneration
+  // instead of living as a hand-edited section after the generation marker.
+  md += paginationSection;
+
+  md += `---
 
 **Generated from:** \`services/api/openapi.yaml\`  
 **Last Updated:** ${new Date().toISOString()}  
